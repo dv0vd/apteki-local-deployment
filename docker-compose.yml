@@ -1,0 +1,1825 @@
+# With love by Vyacheslav Davydov |   ( • ) ( • )   | v.davydov@qsoft.ru  - enjoy that beautiful day :)
+services:
+    api-gateway:
+        container_name: api-gateway
+        build:
+            dockerfile: ./_/deployment/api-gateway.dockerfile
+        environment:
+            - KRAKEND_PORT=8080
+            - APP_TOKEN='Bearer '
+        networks:
+            farma:
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        healthcheck:
+            test: curl 'http://api-gateway:8080/__health' --fail | grep '"status":"ok"'
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+        depends_on:
+            autoheal:
+                condition: service_started
+    attribute-service:
+        container_name: attribute-service
+        user: root
+        build:
+            dockerfile: ./_/deployment/attribute-service.dockerfile
+        volumes:
+            - ./services/attribute-service:/var/www/app
+        env_file:
+            - ./_/env/_common.env
+            - ./_/env/attribute-service.env
+        networks:
+            farma:
+                aliases:
+                    - attribute-service
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+            redis-node-0:
+                condition: service_healthy
+            nginx:
+                condition: service_healthy
+            api-gateway:
+                condition: service_healthy
+            autoheal:
+                condition: service_started
+        restart: unless-stopped
+        secrets:
+            - source: composer-2.3.0
+              target: /tmp/composer.phar
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        healthcheck:
+            test: curl 'http://attribute-service:8080/_ignition/health-check' -I --fail
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+    a-plus-service:
+        container_name: a-plus-service
+        user: root
+        build:
+            dockerfile: ./_/deployment/a-plus-service.dockerfile
+        volumes:
+            - ./services/a-plus-service:/var/www/app
+        env_file:
+            - ./_/env/_common.env
+            - ./_/env/a-plus-service.env
+        networks:
+            farma:
+                aliases:
+                    - a-plus-service
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+            redis-node-0:
+                condition: service_healthy
+            nginx:
+                condition: service_healthy
+            api-gateway:
+                condition: service_healthy
+            autoheal:
+                condition: service_started
+            # todo kafka
+        restart: unless-stopped
+        secrets:
+            - source: composer-2.3.0
+              target: /tmp/composer.phar
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        healthcheck:
+            test: curl 'http://a-plus-service:8080/_ignition/health-check' -I --fail
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+    cart-service:
+        container_name: cart-service
+        user: root
+        build:
+            dockerfile: ./_/deployment/cart-service.dockerfile
+        volumes:
+            - ./services/cart-service:/var/www/app
+        env_file:
+            - ./_/env/_common.env
+            - ./_/env/cart-service.env
+        networks:
+            farma:
+                aliases:
+                    - cart-service
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+            redis-node-0:
+                condition: service_healthy
+            nginx:
+                condition: service_healthy
+            api-gateway:
+                condition: service_healthy
+            autoheal:
+                condition: service_started
+        restart: unless-stopped
+        secrets:
+            - source: composer-2.3.0
+              target: /tmp/composer.phar
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        healthcheck:
+            test: curl 'http://cart-service:8080/_ignition/health-check' -I --fail
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+    clickhouse-analytics-service:
+        container_name: clickhouse-analytics-service
+        build:
+            dockerfile: ./_/deployment/clickhouse-analytics-service.dockerfile
+        volumes:
+            - ./services/clickhouse-analytics-service:/app
+            - ./_/data/go/clickhouse-analytics-service:/go
+            - ./_/data/go/clickhouse-analytics-service-cache:/root/.cache
+            - ./_/data/go/clickhouse-analytics-service-pkg:/go
+        env_file:
+            - ./_/env/_common.env
+            - ./_/env/clickhouse-analytics-service.env
+        command: go run /app/cmd/consumer/main.go
+        networks:
+            farma:
+                aliases:
+                    - clickhouse-analytics-service
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+            api-gateway:
+                condition: service_healthy
+            redis-node-0:
+                condition: service_healthy
+            clickhouse:
+                condition: service_healthy
+            autoheal:
+                condition: service_started
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        healthcheck:
+            test: ping clickhouse-analytics-service:8080 -c 1
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+    docs:
+        container_name: docs
+        build:
+            dockerfile: ./_/deployment/docs.dockerfile
+        volumes:
+            - ./docs:/app
+            - /app/node_modules
+        ports:
+            - '3030:3000'
+        command: npm run watch
+        networks:
+            farma:
+                aliases:
+                    - docs
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        depends_on:
+            autoheal:
+                condition: service_started
+    feed-service:
+        container_name: feed-service
+        user: root
+        build:
+            dockerfile: ./_/deployment/feed-service.dockerfile
+        volumes:
+            - ./services/feed-service:/var/www/app
+        env_file:
+            - ./_/env/_common.env
+            - ./_/env/feed-service.env
+        networks:
+            farma:
+                aliases:
+                    - feed-service
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+            redis-node-0:
+                condition: service_healthy
+            nginx:
+                condition: service_healthy
+            api-gateway:
+                condition: service_healthy
+            autoheal:
+                condition: service_started
+        restart: unless-stopped
+        secrets:
+            - source: composer-2.6.0
+              target: /tmp/composer.phar
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        healthcheck:
+            test: curl 'http://feed-service:8080/_ignition/health-check' -I --fail
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+    front-service:
+        container_name: front-service
+        user: root
+        # user: '1000'
+        build:
+            dockerfile: ./_/deployment/front-service.dockerfile
+        volumes:
+            - ./services/front-service:/app
+        env_file:
+            - ./_/env/_common.env
+            - ./_/env/front-service.env
+        ports:
+            - '3000:3000'
+        command: bash -c 'npm i && npm run dev'
+        networks:
+            farma:
+                aliases:
+                    - front-service
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    cpus: '4'
+                    memory: 4096M
+        depends_on:
+            autoheal:
+                condition: service_started
+    idm-service:
+        container_name: idm-service
+        user: root
+        build:
+            dockerfile: ./_/deployment/idm-service.dockerfile
+        volumes:
+            - ./services/idm-service:/var/www/app
+        env_file:
+            - ./_/env/_common.env
+            - ./_/env/idm-service.env
+        secrets:
+            - source: composer-2.3.0
+              target: /tmp/composer.phar
+            - source: idm-service_public-key
+              target: /var/www/app/storage/oauth-public.key
+            - source: idm-service_private-key
+              target: /var/www/app/storage/oauth-private.key
+        networks:
+            farma:
+                aliases:
+                    - idm-service
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+            redis-node-0:
+                condition: service_healthy
+            nginx:
+                condition: service_healthy
+            api-gateway:
+                condition: service_healthy
+            autoheal:
+                condition: service_started
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        healthcheck:
+            test: curl 'http://idm-service:8080/_ignition/health-check' -I --fail
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+    idm-service-consumer:
+        container_name: idm-service-consumer
+        user: root
+        build:
+            dockerfile: ./_/deployment/idm-service.dockerfile
+        volumes:
+            - ./services/idm-service:/var/www/app
+        command: bash -c 'php artisan event-dispatcher:queue-binding --quorum=1 && sleep 5 && php artisan event-dispatcher:consume'
+        env_file:
+            - ./_/env/_common.env
+            - ./_/env/idm-service.env
+        secrets:
+            - source: composer-2.3.0
+              target: /tmp/composer.phar
+            - source: idm-service_public-key
+              target: /var/www/app/storage/oauth-public.key
+            - source: idm-service_private-key
+              target: /var/www/app/storage/oauth-private.key
+        networks:
+            farma:
+                aliases:
+                    - idm-service-consumer
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+            redis-node-0:
+                condition: service_healthy
+            nginx:
+                condition: service_healthy
+            api-gateway:
+                condition: service_healthy
+            autoheal:
+                condition: service_started
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+    import-prepare:
+        container_name: import-prepare
+        build:
+            dockerfile: ./_/deployment/import-service.dockerfile
+        volumes:
+            - ./services/import-service:/app
+            - ./_/data/go/import-service:/go
+            - ./_/data/go/import-prepare-cache:/root/.cache
+            - ./_/data/go/import-service-pkg:/go
+        env_file:
+            - ./_/env/_common.env
+            - ./_/env/import-service.env
+        command: go run /app/cmd/import-prepare/main.go
+        networks:
+            farma:
+                aliases:
+                    - import-prepare
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+            redis-node-0:
+                condition: service_healthy
+            minio:
+                condition: service_healthy
+            mongo:
+                condition: service_healthy
+        deploy:
+            replicas: 0
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+    import-deploy:
+        container_name: import-deploy
+        build:
+            dockerfile: ./_/deployment/import-service.dockerfile
+        volumes:
+            - ./services/import-service:/app
+            - ./_/data/go/import-service:/go
+            - ./_/data/go/import-deploy-cache:/root/.cache
+            - ./_/data/go/import-service-pkg:/go
+        env_file:
+            - ./_/env/_common.env
+            - ./_/env/import-service.env
+        command: go run /app/cmd/import-deploy/main.go
+        networks:
+            farma:
+                aliases:
+                    - import-deploy
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+            redis-node-0:
+                condition: service_healthy
+            minio:
+                condition: service_healthy
+            mongo:
+                condition: service_healthy
+        deploy:
+            replicas: 0
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+    master-service:
+        container_name: master-service
+        user: root
+        build:
+            dockerfile: ./_/deployment/master-service.dockerfile
+        volumes:
+            - ./services/master-service:/var/www/app
+        env_file:
+            - ./_/env/_common.env
+            - ./_/env/master-service.env
+        networks:
+            farma:
+                aliases:
+                    - master-service
+                    - master-public
+                    - master-aggs
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+            redis-node-0:
+                condition: service_healthy
+            nginx:
+                condition: service_healthy
+            api-gateway:
+                condition: service_healthy
+            autoheal:
+                condition: service_started
+        restart: unless-stopped
+        secrets:
+            - source: composer-2.3.0
+              target: /tmp/composer.phar
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        healthcheck:
+            test: curl 'http://master-service:8080/_ignition/health-check' -I --fail
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+    media-service:
+        container_name: media-service
+        user: root
+        build:
+            dockerfile: ./_/deployment/media-service.dockerfile
+        volumes:
+            - ./services/media-service:/var/www/app
+        env_file:
+            - ./_/env/_common.env
+            - ./_/env/media-service.env
+        networks:
+            farma:
+                aliases:
+                    - media-service
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+            redis-node-0:
+                condition: service_healthy
+            nginx:
+                condition: service_healthy
+            api-gateway:
+                condition: service_healthy
+            autoheal:
+                condition: service_started
+        restart: unless-stopped
+        secrets:
+            - source: composer-2.3.0
+              target: /tmp/composer.phar
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        healthcheck:
+            test: curl 'http://media-service:8080/_ignition/health-check' -I --fail
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+    media-service-test:
+        container_name: media-service-test
+        user: root
+        build:
+            dockerfile: ./_/deployment/media-service-test.dockerfile
+        volumes:
+            - ./services/media-service:/var/www/app
+        env_file:
+            - ./_/env/_common-test.env
+            - ./_/env/media-service-test.env
+        networks:
+            farma:
+                aliases:
+                    - media-service-test
+        depends_on:
+            postgres:
+                condition: service_healthy
+            redis-node-0:
+                condition: service_healthy
+        restart: unless-stopped
+        secrets:
+            - source: composer-2.3.0
+              target: /tmp/composer.phar
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+    mindbox-service:
+        container_name: mindbox-service
+        user: root
+        build:
+            dockerfile: ./_/deployment/mindbox-service.dockerfile
+        volumes:
+            - ./services/mindbox-service:/var/www/app
+        env_file:
+            - ./_/env/_common.env
+            - ./_/env/mindbox-service.env
+        networks:
+            farma:
+                aliases:
+                    - mindbox-service
+                    - mindbox-public
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+            redis-node-0:
+                condition: service_healthy
+            nginx:
+                condition: service_healthy
+            api-gateway:
+                condition: service_healthy
+            autoheal:
+                condition: service_started
+        restart: unless-stopped
+        secrets:
+            - source: composer-2.3.0
+              target: /tmp/composer.phar
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        healthcheck:
+            test: curl 'http://mindbox-service:8080/_ignition/health-check' -I --fail
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+    mindbox-service-consumer:
+        container_name: mindbox-service-consumer
+        user: root
+        build:
+            dockerfile: ./_/deployment/mindbox-service.dockerfile
+        volumes:
+            - ./services/mindbox-service:/var/www/app
+        env_file:
+            - ./_/env/_common.env
+            - ./_/env/mindbox-service.env
+        networks:
+            farma:
+                aliases:
+                    - mindbox-service-consumer
+        command: bash -c 'php artisan event-dispatcher:queue-binding --quorum=1 && sleep 5 && php artisan event-dispatcher:consume'
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+            redis-node-0:
+                condition: service_healthy
+            nginx:
+                condition: service_healthy
+            api-gateway:
+                condition: service_healthy
+            autoheal:
+                condition: service_started
+        restart: unless-stopped
+        secrets:
+            - source: composer-2.3.0
+              target: /tmp/composer.phar
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+    mobile-service:
+        container_name: mobile-service
+        user: root
+        build:
+            dockerfile: ./_/deployment/mobile-service.dockerfile
+        volumes:
+            - ./services/mobile-service:/var/www/app
+        env_file:
+            - ./_/env/_common.env
+            - ./_/env/mobile-service.env
+        networks:
+            farma:
+                aliases:
+                    - mobile-service
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+            redis-node-0:
+                condition: service_healthy
+            nginx:
+                condition: service_healthy
+            api-gateway:
+                condition: service_healthy
+            autoheal:
+                condition: service_started
+        restart: unless-stopped
+        secrets:
+            - source: composer-2.3.0
+              target: /tmp/composer.phar
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        healthcheck:
+            test: curl 'http://mobile-service:8080/_ignition/health-check' -I --fail
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+    notification-service:
+        container_name: notification-service
+        user: root
+        build:
+            dockerfile: ./_/deployment/notification-service.dockerfile
+        volumes:
+            - ./services/notification-service:/var/www/app
+        env_file:
+            - ./_/env/_common.env
+            - ./_/env/notification-service.env
+        secrets:
+            - source: notification-service_fcm_auth
+              target: /var/www/app/storage/app/fcm.json
+            - source: composer-2.3.0
+              target: /tmp/composer.phar
+        networks:
+            farma:
+                aliases:
+                    - notification-service
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+            redis-node-0:
+                condition: service_healthy
+            nginx:
+                condition: service_healthy
+            api-gateway:
+                condition: service_healthy
+            autoheal:
+                condition: service_started
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        healthcheck:
+            test: curl 'http://notification-service:8080/_ignition/health-check' -I --fail
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+    notification-service-consumer:
+        container_name: notification-service-consumer
+        user: root
+        build:
+            dockerfile: ./_/deployment/notification-service.dockerfile
+        volumes:
+            - ./services/notification-service:/var/www/app
+        env_file:
+            - ./_/env/_common.env
+            - ./_/env/notification-service.env
+        secrets:
+            - source: notification-service_fcm_auth
+              target: /var/www/app/storage/app/fcm.json
+            - source: composer-2.3.0
+              target: /tmp/composer.phar
+        networks:
+            farma:
+                aliases:
+                    - notification-service-consumer
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+            redis-node-0:
+                condition: service_healthy
+            nginx:
+                condition: service_healthy
+            api-gateway:
+                condition: service_healthy
+            autoheal:
+                condition: service_started
+        restart: unless-stopped
+        command: bash -c 'php artisan event-dispatcher:queue-binding --quorum=1 && sleep 5 && php artisan event-dispatcher:consume'
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+    order-service:
+        container_name: order-service
+        user: root
+        build:
+            dockerfile: ./_/deployment/order-service.dockerfile
+        volumes:
+            - ./services/order-service:/var/www/app
+        env_file:
+            - ./_/env/_common.env
+            - ./_/env/order-service.env
+        secrets:
+            - source: composer-2.3.0
+              target: /tmp/composer.phar
+        networks:
+            farma:
+                aliases:
+                    - orders-service
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+            redis-node-0:
+                condition: service_healthy
+            nginx:
+                condition: service_healthy
+            api-gateway:
+                condition: service_healthy
+            autoheal:
+                condition: service_started
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        healthcheck:
+            test: curl 'http://order-service:8080/_ignition/health-check' -I --fail
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+    order-service-consumer:
+        container_name: order-service-consumer
+        user: root
+        build:
+            dockerfile: ./_/deployment/order-service.dockerfile
+        volumes:
+            - ./services/order-service:/var/www/app
+        env_file:
+            - ./_/env/_common.env
+            - ./_/env/order-service.env
+        secrets:
+            - source: composer-2.3.0
+              target: /tmp/composer.phar
+        networks:
+            farma:
+                aliases:
+                    - orders-service-consumer
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+            redis-node-0:
+                condition: service_healthy
+            nginx:
+                condition: service_healthy
+            api-gateway:
+                condition: service_healthy
+            autoheal:
+                condition: service_started
+        restart: unless-stopped
+        command: bash -c 'php artisan event-dispatcher:queue-binding --quorum=1 && sleep 5 && php artisan event-dispatcher:consume'
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+    redirect-service:
+        container_name: redirect-service
+        build:
+            dockerfile: ./_/deployment/redirect-service.dockerfile
+        env_file:
+            - ./_/env/_common.env
+            - ./_/env/redirect-service.env
+        networks:
+            farma:
+                aliases:
+                    - redirect-service
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        depends_on:
+            autoheal:
+                condition: service_started
+    retail-service:
+        container_name: retail-service
+        user: root
+        build:
+            dockerfile: ./_/deployment/retail-service.dockerfile
+        volumes:
+            - ./services/retail-service:/var/www/app
+        env_file:
+            - ./_/env/_common.env
+            - ./_/env/retail-service.env
+        networks:
+            farma:
+                aliases:
+                    - retail-service
+                    - retail-public
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+            redis-node-0:
+                condition: service_healthy
+            nginx:
+                condition: service_healthy
+            api-gateway:
+                condition: service_healthy
+            autoheal:
+                condition: service_started
+        restart: unless-stopped
+        secrets:
+            - source: composer-2.3.0
+              target: /tmp/composer.phar
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        healthcheck:
+            test: curl 'http://retail-service:8080/_ignition/health-check' -I --fail
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+    saga-service:
+        container_name: saga-service
+        user: root
+        build:
+            dockerfile: ./_/deployment/saga-service.dockerfile
+        volumes:
+            - ./services/saga-service:/var/www/app
+        env_file:
+            - ./_/env/_common.env
+            - ./_/env/saga-service.env
+        networks:
+            farma:
+                aliases:
+                    - saga-service
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+            redis-node-0:
+                condition: service_healthy
+            nginx:
+                condition: service_healthy
+            api-gateway:
+                condition: service_healthy
+            autoheal:
+                condition: service_started
+        restart: unless-stopped
+        secrets:
+            - source: composer-2.3.0
+              target: /tmp/composer.phar
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        healthcheck:
+            test: curl 'http://saga-service:8080/_ignition/health-check' -I --fail
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+    search-service:
+        container_name: search-service
+        user: root
+        build:
+            dockerfile: ./_/deployment/search-service.dockerfile
+        volumes:
+            - ./services/search-service:/var/www/app
+        env_file:
+            - ./_/env/_common.env
+            - ./_/env/search-service.env
+        networks:
+            farma:
+                aliases:
+                    - search-service
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+            redis-node-0:
+                condition: service_healthy
+            nginx:
+                condition: service_healthy
+            api-gateway:
+                condition: service_healthy
+            elasticsearch:
+                condition: service_healthy
+            search-service-consumer:
+                condition: service_started
+            search-service-elastic-worker:
+                condition: service_started
+            search-service-create-indexing-worker:
+                condition: service_started
+            autoheal:
+                condition: service_started
+        restart: unless-stopped
+        secrets:
+            - source: composer-2.3.0
+              target: /tmp/composer.phar
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        healthcheck:
+            test: curl 'http://search-service:8080/_ignition/health-check' -I --fail
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+    search-service-consumer:
+        container_name: search-service-consumer
+        user: root
+        build:
+            dockerfile: ./_/deployment/search-service.dockerfile
+        volumes:
+            - ./services/search-service:/var/www/app
+        command: bash -c 'php artisan event-dispatcher:queue-binding --quorum=1 && sleep 5 && php artisan event-dispatcher:consume search-service --prefetch-count=1'
+        env_file:
+            - ./_/env/_common.env
+            - ./_/env/search-service.env
+        networks:
+            farma:
+                aliases:
+                    - search-service-consumer
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+            redis-node-0:
+                condition: service_healthy
+            nginx:
+                condition: service_healthy
+            api-gateway:
+                condition: service_healthy
+            elasticsearch:
+                condition: service_healthy
+            autoheal:
+                condition: service_started
+        restart: unless-stopped
+        secrets:
+            - source: composer-2.3.0
+              target: /tmp/composer.phar
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+    search-service-elastic-worker:
+        user: root
+        build:
+            dockerfile: ./_/deployment/search-service.dockerfile
+        volumes:
+            - ./services/search-service:/var/www/app
+        command: bash -c 'php artisan queue:work --queue={elastic} --sleep=10 --memory=1024'
+        env_file:
+            - ./_/env/_common.env
+            - ./_/env/search-service.env
+        networks:
+            farma:
+                aliases:
+                    - search-service-elastic-worker
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+            redis-node-0:
+                condition: service_healthy
+            nginx:
+                condition: service_healthy
+            api-gateway:
+                condition: service_healthy
+            elasticsearch:
+                condition: service_healthy
+            autoheal:
+                condition: service_started
+        restart: unless-stopped
+        secrets:
+            - source: composer-2.3.0
+              target: /tmp/composer.phar
+        deploy:
+            replicas: 1
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+    search-service-create-indexing-worker:
+        container_name: search-service-create-indexing-worker
+        user: root
+        build:
+            dockerfile: ./_/deployment/search-service.dockerfile
+        volumes:
+            - ./services/search-service:/var/www/app
+        command: bash -c 'php artisan queue:work --queue={create-indexing}'
+        env_file:
+            - ./_/env/_common.env
+            - ./_/env/search-service.env
+        networks:
+            farma:
+                aliases:
+                    -  search-service-create-indexing-worker
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+            redis-node-0:
+                condition: service_healthy
+            nginx:
+                condition: service_healthy
+            api-gateway:
+                condition: service_healthy
+            elasticsearch:
+                condition: service_healthy
+            autoheal:
+                condition: service_started
+        restart: unless-stopped
+        secrets:
+            - source: composer-2.3.0
+              target: /tmp/composer.phar
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+    search-service-broken-indexes-cleaner:
+        container_name: search-service-broken-indexes-cleaner
+        user: root
+        build:
+            dockerfile: ./_/deployment/search-service.dockerfile
+        volumes:
+            - ./services/search-service:/var/www/app
+        env_file:
+            - ./_/env/_common.env
+            - ./_/env/search-service.env
+        command: php artisan elastic:remove-broken
+        networks:
+            farma:
+                aliases:
+                    - search-service-broken-indexes-cleaner
+        depends_on:
+            postgres:
+                condition: service_healthy
+            redis-node-0:
+                condition: service_healthy
+            elasticsearch:
+                condition: service_healthy
+            autoheal:
+                condition: service_started
+        restart: no
+        secrets:
+            - source: composer-2.3.0
+              target: /tmp/composer.phar
+        deploy:
+            replicas: 0
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+    site-service:
+        container_name: site-service
+        user: root
+        build:
+            dockerfile: ./_/deployment/site-service.dockerfile
+        volumes:
+            - ./services/site-service:/var/www/app
+        env_file:
+            - ./_/env/_common.env
+            - ./_/env/site-service.env
+        networks:
+            farma:
+                aliases:
+                    - site-service
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+            redis-node-0:
+                condition: service_healthy
+            nginx:
+                condition: service_healthy
+            api-gateway:
+                condition: service_healthy
+            autoheal:
+                condition: service_started
+        restart: unless-stopped
+        secrets:
+            - source: composer-2.6.0
+              target: /tmp/composer.phar
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        healthcheck:
+            test: curl 'http://site-service:8080/_ignition/health-check' -I --fail
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+    site-service-test:
+        container_name: site-service-test
+        user: root
+        build:
+            dockerfile: ./_/deployment/site-service-test.dockerfile
+        volumes:
+            - ./services/site-service:/var/www/app
+        env_file:
+            - ./_/env/_common-test.env
+            - ./_/env/site-service-test.env
+        networks:
+            farma:
+                aliases:
+                    - site-service-test
+        depends_on:
+            postgres:
+                condition: service_healthy
+            redis-node-0:
+                condition: service_healthy
+        restart: unless-stopped
+        secrets:
+            - source: composer-2.6.0
+              target: /tmp/composer.phar
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+    stock-service:
+        container_name: stock-service
+        build:
+            dockerfile: ./_/deployment/stock-service.dockerfile
+        volumes:
+            - ./services/stock-service:/app
+            - ./_/data/go/stock-service:/go
+            - ./_/data/go/stock-service-cache:/root/.cache
+            - ./_/data/go/stock-service-pkg:/go
+        env_file:
+            - ./_/env/_common.env
+            - ./_/env/stock-service.env
+        command: go run /app/cmd/server/main.go
+        networks:
+            farma:
+                aliases:
+                    - stock-service
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+            redis-node-0:
+                condition: service_healthy
+            nginx:
+                condition: service_healthy
+            api-gateway:
+                condition: service_healthy
+            autoheal:
+                condition: service_started
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        healthcheck:
+            test: wget --no-verbose --tries=1 --spider 'http://stock-service:8080/api/v1/stock?productIds=0&regionId=0&storageIds=0'
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+    user-service:
+        container_name: user-service
+        user: root
+        build:
+            dockerfile: ./_/deployment/user-service.dockerfile
+        volumes:
+            - ./services/user-service:/var/www/app
+        env_file:
+            - ./_/env/_common.env
+            - ./_/env/user-service.env
+        networks:
+            farma:
+                aliases:
+                    - user-service
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+            redis-node-0:
+                condition: service_healthy
+            nginx:
+                condition: service_healthy
+            api-gateway:
+                condition: service_healthy
+            autoheal:
+                condition: service_started
+        restart: unless-stopped
+        secrets:
+            - source: composer-2.3.0
+              target: /tmp/composer.phar
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        healthcheck:
+            test: curl 'http://user-service:8080/_ignition/health-check' -I --fail
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+    user-service-consumer:
+        container_name: user-service-consumer
+        user: root
+        build:
+            dockerfile: ./_/deployment/user-service.dockerfile
+        volumes:
+            - ./services/user-service:/var/www/app
+        env_file:
+            - ./_/env/_common.env
+            - ./_/env/user-service.env
+        networks:
+            farma:
+                aliases:
+                    - user-service-consumer
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+            redis-node-0:
+                condition: service_healthy
+            nginx:
+                condition: service_healthy
+            api-gateway:
+                condition: service_healthy
+            autoheal:
+                condition: service_started
+        restart: unless-stopped
+        command: bash -c 'php artisan event-dispatcher:queue-binding --quorum=1 && sleep 5 && php artisan event-dispatcher:consume'
+        secrets:
+            - source: composer-2.3.0
+              target: /tmp/composer.phar
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+    wms-service:
+        container_name: wms-service
+        user: root
+        build:
+            dockerfile: ./_/deployment/wms-service.dockerfile
+        volumes:
+            - ./services/wms-service:/var/www/app
+        env_file:
+            - ./_/env/_common.env
+            - ./_/env/wms-service.env
+        networks:
+            farma:
+                aliases:
+                    - wms-service
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+            redis-node-0:
+                condition: service_healthy
+            nginx:
+                condition: service_healthy
+            api-gateway:
+                condition: service_healthy
+            autoheal:
+                condition: service_started
+        restart: unless-stopped
+        secrets:
+            - source: composer-2.3.0
+              target: /tmp/composer.phar
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        healthcheck:
+            test: curl 'http://wms-service:8080/_ignition/health-check' -I --fail
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+    autoheal:
+        restart: always
+        image: willfarrell/autoheal:1.2.0
+        container_name: autoheal
+        environment:
+            - AUTOHEAL_CONTAINER_LABEL=all
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+    clickhouse:
+        image: bitnami/clickhouse:24.4.1
+        container_name: clickhouse
+        user: '1000'
+        ports:
+            - '8123:8123'
+        volumes:
+            - ./_/data/clickhouse:/bitnami/clickhouse
+        networks:
+            farma:
+                aliases:
+                    - clickhouse
+        restart: unless-stopped
+        environment:
+            - ALLOW_EMPTY_PASSWORD=yes
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        healthcheck:
+            test: clickhouse status | grep ' is running'
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+        depends_on:
+            autoheal:
+                condition: service_started
+            postgres:
+                condition: service_healthy
+    elasticsearch:
+        container_name: elasticsearch
+        image: elasticsearch:7.17.1
+        user: '1000'
+        volumes:
+            - ./_/data/elasticsearch:/usr/share/elasticsearch/data
+        environment:
+            - discovery.type=single-node
+        ports:
+            - 9200:9200
+        networks:
+            farma:
+                aliases:
+                    - elasticsearch
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        depends_on:
+            autoheal:
+                condition: service_started
+        secrets:
+            - source: elasticsearch_synonyms
+              target: /usr/share/elasticsearch/config/synonym/synonym.txt
+        healthcheck:
+            test: curl 'http://elasticsearch:9200/_cluster/health?wait_for_status=yellow&pretty' --fail
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+    kibana:
+        container_name: kibana
+        image: kibana:7.17.1
+        #todo volumes
+        ports:
+            - 56011:5601
+        networks:
+            farma:
+                aliases:
+                    - kibana
+        restart: unless-stopped
+        deploy:
+            replicas: 0
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        depends_on:
+            autoheal:
+                condition: service_started
+            elasticsearch:
+                condition: service_healthy
+        healthcheck:
+            test: curl -I 'http://kibana:5601/api/status' --fail
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+    minio:
+        image: minio/minio:RELEASE.2024-05-07T06-41-25Z.fips
+        container_name: minio
+        ports:
+            - '9000:9000'
+            - '8900:8900'
+        environment:
+            MINIO_ROOT_USER: sail
+            MINIO_ROOT_PASSWORD: password
+        networks:
+            farma:
+                aliases:
+                    - minio
+        volumes:
+            - ./_/data/minio:/data
+        # command: server /data --console-address ":8900"
+        command: minio server /data --console-address ':8900'
+        restart: unless-stopped
+        depends_on:
+            autoheal:
+                condition: service_started
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        healthcheck:
+            test: curl -I --fail 'http://minio:8900/minio/health/live'
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+    mongo:
+        container_name: mongo
+        image: mongo:7.0.9
+        volumes:
+            - ./_/data/mongo:/data/db
+        ports:
+            - '27017:27017'
+        networks:
+            farma:
+                aliases:
+                    - mongo
+        depends_on:
+            autoheal:
+                condition: service_started
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        healthcheck:
+            test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017 --quiet
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+    nginx:
+        container_name: nginx
+        build:
+            context: ./_/deployment/nginx
+            dockerfile: ./Dockerfile
+        networks:
+            farma:
+                aliases:
+                    - nginx
+        ports:
+            - 80:80
+        environment:
+            - NGX_DOMAIN_ZONE_SOURCE=none
+            - NGX_DOMAIN_ZONE=''
+            - SITE_NAME=localhost
+            - WEB_APP=front-service
+            - API_APP=api-gateway
+            - IDM_APP=idm_service
+            - SITE_APP=site-service
+            - REDIRECT_APP=redirect-service
+            - ADMIN_APP=admin-service
+            - MINIO_HOST=minio
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        depends_on:
+            autoheal:
+                condition: service_started
+            minio:
+                condition: service_healthy
+            redirect-service:
+                condition: service_started
+        healthcheck:
+            test: curl -I --fail 'http://127.0.0.1/health/'
+            # test: curl -I --fail 'http://localhost/robots.txt'
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+    postgres:
+        container_name: postgres
+        environment:
+            - POSTGRES_HOST_AUTH_METHOD=trust # for clickhouse
+        image: postgres:16.2
+        volumes:
+            - ./_/data/postgres:/var/lib/postgresql/data
+            - ./_/db:/backups
+        ports:
+            - '5432:5432'
+        networks:
+            farma:
+                aliases:
+                    - postgres
+        restart: unless-stopped
+        depends_on:
+            autoheal:
+                condition: service_started
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        healthcheck:
+            test: pg_isready
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+    rabbitmq:
+        container_name: rabbitmq
+        image: rabbitmq:3.11.2-management
+        hostname: localhost
+        volumes:
+            # - ./_/data/rabbitmq:/var/lib/rabbitmq/mnesia
+            - ./_/data/rabbitmq:/var/lib/rabbitmq
+        networks:
+            farma:
+                aliases:
+                    - rabbitmq
+        ports:
+            - '5672:5672'
+            - '15672:15672'
+        restart: unless-stopped
+        depends_on:
+            autoheal:
+                condition: service_started
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        healthcheck:
+            test: rabbitmq-diagnostics check_port_connectivity
+            # test: rabbitmq-diagnostics -q ping
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+    redis-node-0:
+        image: bitnami/redis-cluster:7.2.4
+        container_name: redis-node-0
+        ports:
+            - '7379:6379'
+        depends_on:
+            autoheal:
+                condition: service_started
+            redis-node-1:
+                condition: service_started
+            redis-node-2:
+                condition: service_started
+            redis-node-3:
+                condition: service_started
+            redis-node-4:
+                condition: service_started
+            redis-node-5:
+                condition: service_started
+        environment:
+            - ALLOW_EMPTY_PASSWORD=yes
+            - REDIS_CLUSTER_REPLICAS=1
+            - REDIS_NODES=redis-node-0 redis-node-1 redis-node-2 redis-node-3 redis-node-4 redis-node-5
+            - REDIS_CLUSTER_CREATOR=yes
+        networks:
+            farma:
+                aliases:
+                    - redis-node-0
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        healthcheck:
+            test: redis-cli ping | grep PONG
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+    redis-node-1:
+        image: bitnami/redis-cluster:7.2.4
+        container_name: redis-node-1
+        ports:
+            - '7380:6379'
+        environment:
+            - ALLOW_EMPTY_PASSWORD=yes
+            - REDIS_NODES=redis-node-0 redis-node-1 redis-node-2 redis-node-3 redis-node-4 redis-node-5
+        networks:
+            farma:
+                aliases:
+                    - redis-node-1
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        depends_on:
+            autoheal:
+                condition: service_started
+        healthcheck:
+            test: redis-cli ping | grep PONG
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+    redis-node-2:
+        image: bitnami/redis-cluster:7.2.4
+        container_name: redis-node-2
+        ports:
+            - '7381:6379'
+        environment:
+            - ALLOW_EMPTY_PASSWORD=yes
+            - REDIS_NODES=redis-node-0 redis-node-1 redis-node-2 redis-node-3 redis-node-4 redis-node-5
+        networks:
+            farma:
+                aliases:
+                    - redis-node-2
+        depends_on:
+            autoheal:
+                condition: service_started
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        healthcheck:
+            test: redis-cli ping | grep PONG
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+    redis-node-3:
+        image: bitnami/redis-cluster:7.2.4
+        container_name: redis-node-3
+        ports:
+            - '7382:6379'
+        environment:
+            - ALLOW_EMPTY_PASSWORD=yes
+            - REDIS_NODES=redis-node-0 redis-node-1 redis-node-2 redis-node-3 redis-node-4 redis-node-5
+        networks:
+            farma:
+                aliases:
+                    - redis-node-3
+        depends_on:
+            autoheal:
+                condition: service_started
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        healthcheck:
+            test: redis-cli ping | grep PONG
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+    redis-node-4:
+        image: bitnami/redis-cluster:7.2.4
+        container_name: redis-node-4
+        ports:
+            - '7383:6379'
+        environment:
+            - ALLOW_EMPTY_PASSWORD=yes
+            - REDIS_NODES=redis-node-0 redis-node-1 redis-node-2 redis-node-3 redis-node-4 redis-node-5
+        networks:
+            farma:
+                aliases:
+                    - redis-node-4
+        depends_on:
+            autoheal:
+                condition: service_started
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        healthcheck:
+            test: redis-cli ping | grep PONG
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+    redis-node-5:
+        image: bitnami/redis-cluster:7.2.4
+        container_name: redis-node-5
+        ports:
+            - '7384:6379'
+        environment:
+            - ALLOW_EMPTY_PASSWORD=yes
+            - REDIS_NODES=redis-node-0 redis-node-1 redis-node-2 redis-node-3 redis-node-4 redis-node-5
+        networks:
+            farma:
+                aliases:
+                    - redis-node-5
+        depends_on:
+            autoheal:
+                condition: service_started
+        deploy:
+            resources:
+                limits:
+                    cpus: '1'
+                    memory: 1024M
+        healthcheck:
+            test: redis-cli ping | grep PONG
+            interval: 5s
+            timeout: 30s
+            retries: 30
+            start_period: 30s
+secrets:
+    composer-2.3.0:
+        file:  ./_/secrets/composer/composer-2.3.0.phar
+    composer-2.6.0:
+        file:  ./_/secrets/composer/composer-2.6.0.phar
+    idm-service_public-key:
+        file:  ./_/secrets/idm-service/oauth-public.key
+    idm-service_private-key:
+        file:  ./_/secrets/idm-service/oauth-private.key
+    notification-service_fcm_auth:
+        file:  ./_/secrets/notification-service/fcm.json
+    elasticsearch_synonyms:
+        file:  ./_/secrets/elasticsearch/synonym.txt
+networks:
+    farma:
+        driver: bridge
